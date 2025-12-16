@@ -1,0 +1,19 @@
+# DEMO SCRIPT – Deliverable 3 (Grammar-only)
+
+1. set x = 10 + 5 
+- Grammar recognizes set
+- AST is built
+- Variable stored in environment
+
+2. compute x * 2
+- expression parsing
+- operator precedence
+- varaible stored in environment
+
+3. if x > 10 then print result
+- conditional parsing
+- semantic evaluation
+
+4. print result
+- interpreter retrieves stored values
+sort numbers
