@@ -62,7 +62,7 @@ This grammar-first approach ensures deterministic execution while allowing flexi
 
 ## ✍️ Supported Language Features
 
-### Core Commands (Deliverable 3)
+### Core Commands
 - Assignment:  
   `set x = 10 + 5`
 - Arithmetic expressions with precedence:  
@@ -72,11 +72,11 @@ This grammar-first approach ensures deterministic execution while allowing flexi
 - Action commands:  
   `print result`, `sort numbers`
 
-### Hybrid Extension (Deliverable 4)
+### Hybrid Extension
 - Informal and ambiguous input handling using LLM fallback:  
   `pls organize this list` → `sort numbers`
 
-### Paradigm Extension (Deliverable 5)
+### Paradigm Extension
 - **Concurrency** using natural syntax:  
   `sort numbers while print progress`
 
@@ -100,4 +100,5 @@ This grammar-first approach ensures deterministic execution while allowing flexi
 ### 1. Clone or open the project folder
 ```bash
 cd HybridMind
+
 
