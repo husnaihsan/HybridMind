@@ -7,7 +7,7 @@ This project is developed as part of the WIF3010 Programming Language Paradigms 
 
 ---
 
-## 📌 Project Motivation
+## Project Motivation
 
 Natural-language interfaces are increasingly used to express computational tasks. However:
 
@@ -25,7 +25,7 @@ HybridMind addresses this gap using a **two-tier hybrid architecture**:
 
 ---
 
-## 🎯 Project Objectives
+## Project Objectives
 
 - Design a **context-free grammar (CFG)** using EBNF for structured natural-language commands
 - Implement a **recursive-descent parser** and interpreter in Python
@@ -38,7 +38,7 @@ HybridMind addresses this gap using a **two-tier hybrid architecture**:
 
 ---
 
-## 🧠 System Overview
+## System Overview
 
 
 ### HybridMind Processing Pipeline
@@ -60,7 +60,7 @@ This grammar-first approach ensures deterministic execution while allowing flexi
 
 ---
 
-## ✍️ Supported Language Features
+## Supported Language Features
 
 ### Core Commands
 - Assignment:  
@@ -82,23 +82,26 @@ This grammar-first approach ensures deterministic execution while allowing flexi
 
 ---
 
-## 🛠️ Implementation Details
+## Implementation Details
 
 - **Language**: Python 3
 - **Lexer**: Regex-based scanner
 - **Parser**: Hand-written recursive-descent parser
 - **Interpreter**: AST-based deterministic execution
 - **LLM Integration**:
-  - Google Gemini (real API)
+  - Hugging Face (google/flan-t5-large)
   - Simulated LLM fallback for robustness and offline safety
 - **Concurrency**: Python threading
 
 ---
 
-## ▶️ How to Run
+## How to Run
 
 ### 1. Clone or open the project folder
 ```bash
 cd HybridMind
+```
+cont..
+
 
 
