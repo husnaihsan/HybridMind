@@ -1,0 +1,12 @@
+# Tier1 works
+compute 1 + 2 * 3
+set x = 10
+if x > 5 then print result
+sort numbers
+sort numbers while show progress
+
+# Needs rule/LLM
+pls sort this list
+arrange these numbers
+organize list while showing status
+show the result
