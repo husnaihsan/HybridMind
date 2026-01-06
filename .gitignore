@@ -4,6 +4,7 @@ __pycache__/
 
 # Environment variables
 .env
+.venv/
 
 # OS
 .DS_Store
@@ -11,3 +12,4 @@ Thumbs.db
 
 # VS Code
 .vscode/
+.ipynb_checkpoints/
