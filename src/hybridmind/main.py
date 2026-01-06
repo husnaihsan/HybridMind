@@ -21,7 +21,7 @@ def interpret(text: str, stats: Optional[HybridStats] = None):
         stats.total_inputs += 1
 
     ast = try_parse(text)
-    if ast is not None:
+    if ast is not None and is_semantically_valid(ast):
         if stats: stats.tier1_success += 1
         execute(ast)
         return
@@ -64,11 +64,33 @@ def interpret(text: str, stats: Optional[HybridStats] = None):
     if stats: stats.llm_verified_and_executed += 1
     execute(ast2)
 
+#add stopper helper
+STOPWORDS = {"me", "the", "a", "an", "please", "pls", "this", "that", "it"}
+
+def is_semantically_valid(ast) -> bool:
+    if ast is None:
+        return False
+
+    if ast[0] != "ACTION_CMD":
+        return True
+
+    _, action, obj, expr = ast
+
+    # compute must have expr
+    if action == "compute":
+        return expr is not None
+
+    # Reject meaningless objects like "the", "me" for show/print
+    if action in ("show", "print") and obj in STOPWORDS:
+        return False
+
+    return True
+
 def repl():
     print("HybridMind: grammar-first + rule + LLM fallback + concurrency")
     print("Type 'exit' to quit.\n")
     while True:
-        text = input("Hybrid>>> ").strip()
+        text = input("HybridMind>>> ").strip()
         if text.lower() == "exit":
             break
         interpret(text)
