@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Optional
 import torch
 from transformers import pipeline
+import re
 
 
 # -----------------------------------------------------------------------------
@@ -85,7 +86,32 @@ def rule_fallback(user_text: str) -> Optional[str]:
     Cheap deterministic mapping for common ambiguous phrases.
     This runs BEFORE calling the LLM (saves time + avoids hallucination).
     """
-    t = (user_text or "").lower()
+    t = (user_text or "").lower().strip()
+    
+    # --- set variable patterns ---
+    m = re.search(r"\b(store|put|save)\s+(\d+(?:\.\d+)?)\s+(in|into)\s+(variable|var)\s+([a-z_]\w*)\b", t)
+    if m:
+        value = m.group(2)
+        name = m.group(5)
+        return f"set {name} = {value}"
+
+    # --- calculate patterns (word-ops → symbols, keep parentheses) ---
+    if t.startswith("calculate "):
+        expr = t[len("calculate "):].strip()
+        expr = (expr
+            .replace("plus", "+")
+            .replace("minus", "-")
+            .replace("times", "*")
+            .replace("multiplied by", "*")
+            .replace("divided by", "/")
+        )
+        # normalize spaces
+        expr = re.sub(r"\s+", " ", expr)
+        return f"compute {expr}"
+
+    # --- show/print result (catch 'show the result', 'show me the result') ---
+    if "result" in t and any(w in t for w in ["print", "show", "display"]):
+        return "print result"
 
     # Key demo: sort + progress concurrently
     if "while" in t and ("progress" in t or "status" in t):
@@ -168,12 +194,15 @@ Output:
     # Keep only first line and normalize punctuation
     out = out.splitlines()[0].strip()
     out = (
-        out.replace(":", "")
-           .replace(";", "")
-           .replace(",", "")
-           .replace("(", "")
-           .replace(")", "")
-    )
+    out.replace(":", "")
+       .replace(";", "")
+       .replace(",", "")
+       .replace(" plus ", " + ")
+       .replace(" minus ", " - ")
+       .replace(" times ", " * ")
+       .replace(" divided by ", " / ")
+       )
+
 
     # If model says FAIL or output unsafe, try rules, else FAIL
     if out == "fail" or not is_safe_candidate(out):
