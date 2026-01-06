@@ -19,6 +19,15 @@ def try_parse(text: str):
 def interpret(text: str, stats: Optional[HybridStats] = None):
     if stats:
         stats.total_inputs += 1
+        
+    # Early reject: block obviously unsafe / out-of-scope inputs before any fallback
+    raw = (text or "").lower().strip()
+    if any(m in raw for m in UNSAFE_MARKERS):
+        if stats:
+            stats.tier1_fail += 1
+            stats.llm_rejected += 1  # treat as rejected-by-policy, not LLM failure
+        print("[REJECTED] Unsafe / out-of-grammar input.")
+        return
 
     ast = try_parse(text)
     if ast is not None and is_semantically_valid(ast):
@@ -66,6 +75,8 @@ def interpret(text: str, stats: Optional[HybridStats] = None):
 
 #add stopper helper
 STOPWORDS = {"me", "the", "a", "an", "please", "pls", "this", "that", "it"}
+UNSAFE_MARKERS = ("import", "__", "eval", "exec", "open(", "os.", "subprocess", "def ", "class ", "```")
+
 
 def is_semantically_valid(ast) -> bool:
     if ast is None:
