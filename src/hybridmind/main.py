@@ -29,6 +29,7 @@ def interpret(text: str, stats: Optional[HybridStats] = None):
         print("[REJECTED] Unsafe / out-of-grammar input.")
         return
 
+    # --- TIER-1: DIRECT GRAMMAR PARSE + SEMANTIC CHECK ---
     ast = try_parse(text)
     if ast is not None and is_semantically_valid(ast):
         if stats: stats.tier1_success += 1
@@ -37,6 +38,7 @@ def interpret(text: str, stats: Optional[HybridStats] = None):
 
     if stats: stats.tier1_fail += 1
 
+    # --- TIER-2: FALLBACK REWRITING (RULES + LLM) ---
     if not ENABLE_LLM_FALLBACK:
         print("[ERROR] Grammar failed and LLM fallback is disabled.")
         return
@@ -54,6 +56,7 @@ def interpret(text: str, stats: Optional[HybridStats] = None):
         execute(ast_rb)
         return
 
+    #if no rule rewrite, try LLM    
     if stats: stats.llm_used += 1
     rewritten = llm_rewrite(text)
 
@@ -98,7 +101,7 @@ def is_semantically_valid(ast) -> bool:
     return True
 
 def repl():
-    print("HybridMind: grammar-first + rule + LLM fallback + concurrency")
+    print("HybridMind: grammar-first + rule + LLM fallback interpreter")
     print("Type 'exit' to quit.\n")
     while True:
         text = input("HybridMind>>> ").strip()

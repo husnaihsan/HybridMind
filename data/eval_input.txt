@@ -5,12 +5,11 @@ if x > 5 then print result
 sort numbers
 sort numbers while show progress
 
+#Tier 1 fails, LLM fallback to Tier 2
 # Needs rule/LLM
 pls sort this list
 arrange these numbers
 organize list while showing status
 show the result
-
-#Add 1 line that triggers LLM (not covered by rules), e.g.
 store 99 in variable score
 calculate 5 times (2 plus 3)

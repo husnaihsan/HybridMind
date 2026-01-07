@@ -10,7 +10,6 @@ import re
 # -----------------------------------------------------------------------------
 # LLM CONFIG
 # -----------------------------------------------------------------------------
-# Keep these defaults light for CPU. You can override from main.py if you want.
 LLM_MODEL_NAME = "google/flan-t5-base"
 
 # Lazy-loaded HF pipeline
