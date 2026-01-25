@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 from typing import Optional
-import torch
-from transformers import pipeline
 import re
 
+import torch
+from transformers import pipeline
 
 # -----------------------------------------------------------------------------
 # LLM CONFIG
 # -----------------------------------------------------------------------------
-LLM_MODEL_NAME = "google/flan-t5-base"
+LLM_MODEL_NAME = "google/flan-t5-large"
 
 # Lazy-loaded HF pipeline
 _translator = None
@@ -32,7 +32,8 @@ def load_llm() -> None:
     global _translator
     if _translator is not None:
         return
-    print("[LLM] Loading local model...")
+
+    print(f"[LLM] Loading local model: {LLM_MODEL_NAME} ...")
     device = 0 if torch.cuda.is_available() else -1
     _translator = pipeline("text2text-generation", model=LLM_MODEL_NAME, device=device)
     print("[LLM] Ready.")
@@ -53,19 +54,6 @@ def is_safe_candidate(cmd: str) -> bool:
     if not cmd:
         return False
 
-    # Reject placeholders that sometimes appear from prompt templates
-    bad_placeholders = ["<expr>", "<op>", "<command>", "expr", " op ", "command"]
-    if any(b in cmd for b in bad_placeholders):
-        return False
-
-    # Reject common code / injection markers
-    bad_markers = [
-        "__name__", "import", "def ", "class ", "lambda", "exec", "eval",
-        "print(", "```", "{", "}", "[", "]"
-    ]
-    if any(b in cmd for b in bad_markers):
-        return False
-
     # Must be one line only
     if "\n" in cmd or "\r" in cmd:
         return False
@@ -74,60 +62,50 @@ def is_safe_candidate(cmd: str) -> bool:
     if not cmd.startswith(CANON_PREFIXES):
         return False
 
+    # Reject placeholder/template tokens as *whole words*
+    if re.search(r"\b(<expr>|<op>|<command>|expr|op|command)\b", cmd):
+        return False
+
+    # Reject common code / injection markers
+    bad_markers = [
+        "__name__", "import", "from ", "def ", "class ", "lambda",
+        "exec", "eval", "os.", "subprocess", "system(", "open(",
+        "```", "{", "}", "[", "]"
+    ]
+    if any(b in cmd for b in bad_markers):
+        return False
+
+    # Extra: reject obvious "explanations"
+    if any(phrase in cmd for phrase in ["because", "here's", "explanation", "the command is"]):
+        return False
+
     return True
 
 
 # -----------------------------------------------------------------------------
-# RULE-BASED FALLBACK (fast + deterministic)
+# RULE-BASED FALLBACK (MINIMAL on purpose: let LLM do most rewrites)
 # -----------------------------------------------------------------------------
 def rule_fallback(user_text: str) -> Optional[str]:
     """
-    Cheap deterministic mapping for common ambiguous phrases.
-    This runs BEFORE calling the LLM (saves time + avoids hallucination).
+    Minimal deterministic mapping.
+    Keep this VERY small so most inputs go to the LLM (demo-friendly).
+
+    Only handles the most reliable pattern:
+    - storing a numeric value into a variable
     """
     t = (user_text or "").lower().strip()
-    
-    # --- set variable patterns ---
-    m = re.search(r"\b(store|put|save)\s+(\d+(?:\.\d+)?)\s+(in|into)\s+(variable|var)\s+([a-z_]\w*)\b", t)
+    if not t:
+        return None
+
+    # "store 12 into variable x" / "save 3.5 in var score"
+    m = re.search(
+        r"\b(store|put|save)\s+(\d+(?:\.\d+)?)\s+(in|into)\s+(variable|var)\s+([a-z_]\w*)\b",
+        t,
+    )
     if m:
         value = m.group(2)
         name = m.group(5)
         return f"set {name} = {value}"
-
-    # --- calculate patterns (word-ops → symbols, keep parentheses) ---
-    if t.startswith("calculate "):
-        expr = t[len("calculate "):].strip()
-        expr = (expr
-            .replace("plus", "+")
-            .replace("minus", "-")
-            .replace("times", "*")
-            .replace("multiplied by", "*")
-            .replace("divided by", "/")
-        )
-        # normalize spaces
-        expr = re.sub(r"\s+", " ", expr)
-        return f"compute {expr}"
-
-    # --- show/print result (catch 'show the result', 'show me the result') ---
-    if "result" in t and any(w in t for w in ["print", "show", "display"]):
-        return "print result"
-
-    # Key demo: sort + progress concurrently
-    if "while" in t and ("progress" in t or "status" in t):
-        if any(w in t for w in ["sort", "arrange", "organize"]):
-            return "sort numbers while show progress"
-
-    # Single sort
-    if any(w in t for w in ["sort", "arrange", "organize"]) and any(w in t for w in ["list", "numbers", "number"]):
-        return "sort numbers"
-
-    # Print/show result
-    if any(w in t for w in ["print", "show", "display"]) and "result" in t:
-        return "print result"
-
-    # "show progress" synonym
-    if any(w in t for w in ["progress", "status"]) and any(w in t for w in ["show", "display", "print"]):
-        return "show progress"
 
     return None
 
@@ -137,77 +115,115 @@ def rule_fallback(user_text: str) -> Optional[str]:
 # -----------------------------------------------------------------------------
 def llm_rewrite(user_text: str) -> str:
     """
-    Use the LLM ONLY to rewrite natural/ambiguous input into ONE canonical command
+    Use the LLM to rewrite natural/ambiguous input into ONE canonical command
     that your grammar can parse.
+
+    Flow:
+      1) Try minimal rule_fallback (only set-var pattern)
+      2) Otherwise call LLM
+      3) Validate against safe DSL constraints
 
     Returns:
       - rewritten canonical command (string), OR
       - "FAIL" if it cannot produce a safe/valid command.
     """
+    # 1) Minimal deterministic rule (kept tiny on purpose)
+    rb = rule_fallback(user_text)
+    if rb:
+        return rb
+
+    # 2) Otherwise, call the local LLM
     load_llm()
 
-    prompt = f"""Task:
-- Convert the input into ONE single-line command ONLY.
-- Fix typos/ambiguity.
-- Output MUST match the command patterns shown below.
+    prompt = f"""
+    You are a translator into a tiny DSL.
 
-Allowed patterns:
-1) compute <expr>
-2) set <id> = <expr>
-3) if <expr> <op> <expr> then <command>
-4) sort numbers
-5) print result
-6) show progress
-7) sort numbers while show progress
+    Output exactly ONE command. The command MUST start with one of:
+    compute, set, if, sort, print, show
+    If you cannot convert, output exactly: FAIL
 
-Rules:
-- Output ONE line only
-- Output ONLY the command (no explanation)
-- No bullet points, no markdown
-- If you cannot convert, output: FAIL
+    Valid outputs:
+    - compute <expr>
+    - set <id> = <expr>
+    - if <expr> <op> <expr> then <command>
+    - sort numbers
+    - print result
+    - show progress
+    - sort numbers while show progress
 
-Examples:
-Input: add 5 and 10
-Output: compute 5 + 10
+    IMPORTANT CONCURRENCY RULE:
+    - If the user input contains the word "while", you MUST output:
+    sort numbers while show progress
+    (This DSL only supports concurrency for sorting + progress.)
 
-Input: put 99 into variable score
-Output: set score = 99
+    Mapping rules:
+    - "sort/organize/arrange/order/rank" + "list/numbers" => sort numbers
+    - "progress/status" => show progress
+    - "result/output/answer" => print result
+    - "add/sum/plus/minus/times/divide/calc/calculate" => compute <expr>
 
-Input: check if score is big then show it
-Output: if score > 50 then print score
+    Hard rules:
+    - Output ONE line only.
+    - Output ONLY the DSL command, no explanation.
+    - Do NOT output partial commands like "sort" or "show status".
+    - Use the exact tokens: "numbers", "progress", "result".
 
-Input: sort this list while showing progress
-Output: sort numbers while show progress
+    Examples:
+    Input: pls sort this list
+    Output: sort numbers
 
-Input: {user_text}
-Output:
-""".strip()
+    Input: rank these numbers
+    Output: sort numbers
 
-    out = _translator(
+    Input: organize list while show status
+    Output: sort numbers while show progress
+
+    Input: sort numbers while showing progress
+    Output: sort numbers while show progress
+
+    Input: show status
+    Output: show progress
+
+    Input: calc 4 + 5
+    Output: compute 4 + 5
+
+    Input: calc 4 + 5 while show progress
+    Output: sort numbers while show progress
+
+    Input: show the result
+    Output: print result
+
+    Input: {user_text}
+    Output:
+    """.strip()
+
+    res = _translator(
         prompt,
         max_new_tokens=32,
         do_sample=False,
-        num_beams=1
-    )[0]["generated_text"].strip().lower()
+        num_beams=4,
+        early_stopping=True,
+    )[0]
 
-    # Keep only first line and normalize punctuation
+    out = (res.get("generated_text") or "").strip().lower()
+
+    # Keep only first line
     out = out.splitlines()[0].strip()
+
+    # Normalize punctuation & word-ops
     out = (
-    out.replace(":", "")
-       .replace(";", "")
-       .replace(",", "")
-       .replace(" plus ", " + ")
-       .replace(" minus ", " - ")
-       .replace(" times ", " * ")
-       .replace(" divided by ", " / ")
-       )
+        out.replace(":", "")
+           .replace(";", "")
+           .replace(",", "")
+           .replace(" plus ", " + ")
+           .replace(" minus ", " - ")
+           .replace(" times ", " * ")
+           .replace(" divided by ", " / ")
+           .strip()
+    )
 
-
-    # If model says FAIL or output unsafe, try rules, else FAIL
+    # Validate
     if out == "fail" or not is_safe_candidate(out):
-        rb = rule_fallback(user_text)
-        if rb:
-            return rb
         return "FAIL"
 
     return out
