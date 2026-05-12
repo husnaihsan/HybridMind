@@ -40,7 +40,23 @@ HybridMind addresses this gap using a **two-tier hybrid architecture**:
 - Evaluate correctness, ambiguity handling, and execution behaviour using metrics
 
 ---
+## How it works
+```
+User Input
+   ↓
+Lexer (tokenization)
+   ↓
+Parser (CFG → AST)
+   ↓
+✅ If valid → Execute
+❌ If invalid → LLM rewrite
+                  ↓
+           Re-parse & validate
+                  ↓
+               Execute
+```
 
+---
 ## System Overview
 
 ### HybridMind Processing Pipeline
@@ -109,10 +125,10 @@ HybridMind/
 │     ├─ metrics.py
 │     └─ main.py
 ├─ tests/
-│  ├─ __init__.py        (optional but recommended)
+│  ├─ __init__.py  
 │  └─ test_pipeline.py
 └─ data/
-   └─ eval_input.txt     (or your chosen evaluation file name)
+   └─ eval_input.txt
 ```
 
 > Note: With a `src/` layout, you must either set `PYTHONPATH=src` when running,
@@ -286,31 +302,6 @@ Hybrid>>> pls organize this list
 
 ---
 
-## Notes / Troubleshooting
-
-### “ModuleNotFoundError: No module named 'hybridmind'”
-You’re likely running from the root without `PYTHONPATH=src` (or without installing editable).
-Use:
-```bash
-$env:PYTHONPATH="src"
-```
-or install with:
-```bash
-pip install -e .
-```
-
-### “FileNotFoundError: data/...”
-Your working directory matters. Run dataset commands from the **project root** (where `data/` exists).
-
-### Concurrency output looks “messy”
-Threaded printing can interleave. This is normal for concurrent console output.
-
----
-
-## License
-For coursework use. Add a license if you plan to publish publicly.
-
----
 
 ## Acknowledgements
 - WIF3010 Programming Language Paradigms (coursework)
