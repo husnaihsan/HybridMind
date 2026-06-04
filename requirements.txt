@@ -1,3 +1,6 @@
 transformers
 torch
 # Optional: accelerate
+streamlit
+plotly
+pandas
